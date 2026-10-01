@@ -235,6 +235,8 @@ def main():
     ap.add_argument("--pieces", type=int, default=None)
     ap.add_argument("--min-gap", type=int, default=None)
     ap.add_argument("--scale", type=float, default=3.0)
+    ap.add_argument("--max-pixels", type=int, default=18_000_000,
+                    help="cap crop size (Audiveris rejects images over ~20 MP)")
     ap.add_argument("--pad", type=int, default=8)
     ap.add_argument("--no-deskew", action="store_true")
     ap.add_argument("--dewarp", action="store_true",
@@ -280,6 +282,12 @@ def main():
         if args.scale and args.scale != 1.0:
             crop = cv2.resize(crop, None, fx=args.scale, fy=args.scale,
                               interpolation=cv2.INTER_CUBIC)
+        # Audiveris rejects images over ~20 MP ("Too large image"); cap so a
+        # whole high-DPI page doesn't just fail. Downscale to fit the budget.
+        px = crop.shape[0] * crop.shape[1]
+        if px > args.max_pixels:
+            f = (args.max_pixels / px) ** 0.5
+            crop = cv2.resize(crop, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
         if args.binarize:
             crop = binarize_for_omr(crop)
         name = args.outdir / f"{stem}_piece{idx:02d}.png"
