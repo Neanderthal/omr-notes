@@ -17,12 +17,38 @@ title first, so every piece is recognised on its own.
 ```bash
 # full pipeline: split -> recognise -> render check
 python3 scripts/omr.py IMAGE.jpg -o OUTDIR --engine audiveris --render --debug
+
+# let the skill pick the best recognition automatically (recommended for photos)
+python3 scripts/omr.py IMAGE.jpg -o OUTDIR --best --render
 ```
 
 Outputs under `OUTDIR/<image>/`:
 - `pieces/…_pieceNN.png` — one image per detected piece (+ `_overlay.png` cut map with `--debug`)
 - `audiveris/…_pieceNN.mxl` (or `oemer/…_pieceNN.musicxml`) — MusicXML per piece
 - `…_render.png` — verovio render of the result, for eyeballing accuracy
+- with `--best`: `best/…_pieceNN.(mxl|musicxml)` — the winning recognition per piece
+
+## Quality gate (`--check`, `--best`)
+
+OMR output can be structurally wrong in ways you won't hear until playback — the
+classic one here: the melody staff and the piano grand staff get recognised
+*sequentially* instead of together, so the voice is shifted by several bars.
+
+- **`--check`** runs `check_musicxml.py` on each result and prints a verdict
+  (`PASS`/`WARN`/`FAIL` + a penalty). It flags: parts not starting together,
+  parts that barely overlap in time (sequential), measures whose duration ≠ the
+  time signature, unequal measure counts, a time signature not at bar 1, and
+  zero-length notes.
+- **`--best`** runs several engine/flag configs (audiveris ±binarize ±dewarp,
+  oemer ±binarize), scores each with the QA checker, and **keeps the lowest-penalty
+  one** per piece into `best/`. This is how `--binarize --dewarp` was found to fix
+  the shifted-voice bug on a real page (penalty 186 → 0). `--best` ignores
+  `--engine`.
+
+Run the checker standalone too:
+```bash
+python3 scripts/check_musicxml.py SCORE.mxl
+```
 
 ## Engine choice (tested findings)
 
