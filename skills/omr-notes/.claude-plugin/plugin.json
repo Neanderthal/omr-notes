@@ -1,0 +1,24 @@
+{
+  "name": "omr-notes",
+  "version": "0.1.0",
+  "description": "Recognise printed sheet-music photos/scans into editable MusicXML. Splits a page into one image per musical piece BEFORE OMR (so multiple songs on one page are not merged), then runs Audiveris and/or oemer. Use when the user has photos of notes/scores and wants MusicXML, MIDI, or a clean re-engraving.",
+  "author": {
+    "name": "Neanderthal"
+  },
+  "homepage": "https://github.com/Neanderthal/omr-notes/tree/main/skills/omr-notes",
+  "repository": "https://github.com/Neanderthal/omr-notes",
+  "license": "MIT",
+  "keywords": [
+    "omr",
+    "optical-music-recognition",
+    "sheet-music",
+    "musicxml",
+    "midi",
+    "audiveris",
+    "oemer",
+    "musescore"
+  ],
+  "skills": [
+    "./SKILL.md"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "omr-notes",
+  "owner": {
+    "name": "Neanderthal"
+  },
+  "metadata": {
+    "description": "OMR (Optical Music Recognition) for Claude Code — turn sheet-music photos/scans into editable MusicXML, splitting multi-piece pages first.",
+    "version": "0.1.0"
+  },
+  "keywords": [
+    "omr",
+    "optical-music-recognition",
+    "sheet-music",
+    "musicxml",
+    "midi",
+    "audiveris",
+    "oemer",
+    "musescore"
+  ],
+  "plugins": [
+    {
+      "name": "omr-notes",
+      "source": "./skills/omr-notes",
+      "description": "Recognise printed sheet-music photos/scans into editable MusicXML. Splits a page into one image per musical piece BEFORE OMR (so multiple songs on one page are not merged), then runs Audiveris and/or oemer.",
+      "version": "0.1.0",
+      "repository": "https://github.com/Neanderthal/omr-notes",
+      "license": "MIT",
+      "category": "productivity",
+      "keywords": [
+        "omr",
+        "sheet-music",
+        "musicxml",
+        "midi",
+        "audiveris",
+        "oemer",
+        "musescore"
+      ],
+      "strict": true
+    }
+  ]
+}
