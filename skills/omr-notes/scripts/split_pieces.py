@@ -148,10 +148,15 @@ def _bands(mask, gap=10):
     return out
 
 
-def detect_pieces_auto(gray, content_frac=0.015, staff_frac=0.15, title_frac=0.15):
+def detect_pieces_auto(gray, content_frac=0.015, staff_frac=0.15, title_frac=0.15,
+                       title_min_h_frac=0.004, title_gap_frac=0.015):
     """Split by titles: a new piece starts at a wide text block (a title) that
     follows staff content. Robust to page numbers (too narrow) and to the large
     whitespace before a page number (only titles start pieces, not gaps).
+
+    A cut also requires the title to be tall enough and to sit below a real
+    whitespace gap — so inline tempo/expression text and thin ottava ("8---")
+    lines between the systems of ONE piece are not mistaken for a new title.
 
     Returns (ranges, cuts).
     """
@@ -165,16 +170,20 @@ def detect_pieces_auto(gray, content_frac=0.015, staff_frac=0.15, title_frac=0.1
     if not cbands:
         return [(0, h)], []
 
+    min_title_h = title_min_h_frac * h      # thin ottava lines are not titles
+    min_gap_above = title_gap_frac * h      # a new piece is set off by whitespace
     cuts = []
     seen_staff = False
     prev_bottom = None
     for y0, y1 in cbands:
         is_staff = bool(staff_row[y0:y1].any())
         width = int((bw[y0:y1].sum(axis=0) > 0).sum())
-        is_title = (not is_staff) and width > w * title_frac
+        gap_above = (y0 - prev_bottom) if prev_bottom is not None else 0
+        is_title = ((not is_staff) and width > w * title_frac
+                    and (y1 - y0) >= min_title_h)
         if is_staff:
             seen_staff = True
-        elif is_title and seen_staff:
+        elif is_title and seen_staff and gap_above >= min_gap_above:
             cuts.append((prev_bottom + y0) // 2 if prev_bottom is not None else y0)
             seen_staff = False
         prev_bottom = y1
