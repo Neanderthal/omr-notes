@@ -4,9 +4,14 @@
 
 # omr-notes
 
-**Optical Music Recognition (OMR) skill for [Claude Code](https://claude.com/claude-code).**
-Turn photographed or scanned **printed sheet music** into editable **MusicXML**
-for MuseScore — and from there to MIDI or a clean re-engraving.
+**Sheet-music toolkit for [Claude Code](https://claude.com/claude-code) — two chained skills:**
+
+| Skill | Does |
+|---|---|
+| **[omr-notes](skills/omr-notes)** | photo/scan of printed sheet music → editable **MusicXML** |
+| **[notes-to-piano](skills/notes-to-piano)** | that MusicXML/MIDI → realistic **piano audio** (WAV/MP3), fully offline |
+
+Together: **a photo of a score becomes something you can both edit and hear.**
 
 > OMR, not OCR: it recognises staves, clefs, notes and rhythm, not text.
 
@@ -24,6 +29,7 @@ is the difference between usable output and a garbled mess on real songbook page
 ```text
 /plugin marketplace add Neanderthal/omr-notes
 /plugin install omr-notes@omr-notes
+/plugin install notes-to-piano@omr-notes
 ```
 
 ### Manual (clone into your skills folder)
@@ -80,15 +86,41 @@ Always check `_overlay.png` (`--debug`) and re-run with an override if a cut is 
 After OMR, fix residual errors in **MuseScore 4** — see
 [`skills/omr-notes/references/workflow.md`](skills/omr-notes/references/workflow.md).
 
+## Hear it: `notes-to-piano`
+
+The companion skill renders a score into **piano audio** — deterministic
+synthesis of the written notes (not AI-composed), **fully offline**.
+
+```bash
+# one-time: venv + music21 + a CC-BY piano soundfont (~37 MB)
+skills/notes-to-piano/scripts/setup.sh          # --salamander for the 310 MB grand
+
+# MusicXML/.mxl/.mid -> MIDI + WAV + MP3
+python3 skills/notes-to-piano/scripts/to_piano.py SCORE.mxl -o OUT --mp3 --humanize
+```
+
+Pipeline: **MusicXML → MIDI** (music21) **→ WAV** (FluidSynth + soundfont)
+**→ MP3** (ffmpeg). Options: `--humanize` (velocity + micro-timing),
+`--tempo`, `--normalize`, `--soundfont`, `--pdf`. Soundfonts and licensing:
+[`skills/notes-to-piano/references/soundfonts.md`](skills/notes-to-piano/references/soundfonts.md).
+
+Chained end to end: **photo → `omr-notes` → MusicXML → `notes-to-piano` → piano MP3.**
+
 ## Repository layout
 
 ```
-.claude-plugin/marketplace.json     # marketplace manifest
-skills/omr-notes/
-├── .claude-plugin/plugin.json      # plugin manifest
-├── SKILL.md                        # the skill
-├── scripts/                        # omr.py, split_pieces.py, render_musicxml.py, setup.sh
-└── references/                     # setup.md, workflow.md
+.claude-plugin/marketplace.json     # marketplace manifest (lists both plugins)
+skills/
+├── omr-notes/                      # photo/scan -> MusicXML
+│   ├── .claude-plugin/plugin.json
+│   ├── SKILL.md
+│   ├── scripts/                    # omr.py, split_pieces.py, render_musicxml.py, setup.sh
+│   └── references/                 # setup.md, workflow.md
+└── notes-to-piano/                 # MusicXML/MIDI -> piano audio
+    ├── .claude-plugin/plugin.json
+    ├── SKILL.md
+    ├── scripts/                    # to_piano.py, setup.sh
+    └── references/                 # soundfonts.md
 ```
 
 ## License

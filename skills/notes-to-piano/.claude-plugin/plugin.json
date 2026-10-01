@@ -1,0 +1,26 @@
+{
+  "name": "notes-to-piano",
+  "version": "0.1.0",
+  "description": "Render a scanned music score into realistic PIANO audio (WAV/MP3). Takes the MusicXML/MIDI from the omr-notes skill and deterministically synthesizes it with FluidSynth and a CC-BY grand-piano soundfont — fully offline. Optional dynamics humanization, tempo override, and score PDF. Use after omr-notes, or whenever the user wants to HEAR a MusicXML/MIDI score as piano.",
+  "author": {
+    "name": "Neanderthal"
+  },
+  "homepage": "https://github.com/Neanderthal/omr-notes/tree/main/skills/notes-to-piano",
+  "repository": "https://github.com/Neanderthal/omr-notes",
+  "license": "MIT",
+  "keywords": [
+    "musicxml",
+    "midi",
+    "piano",
+    "audio",
+    "fluidsynth",
+    "soundfont",
+    "music21",
+    "render",
+    "mp3",
+    "offline"
+  ],
+  "skills": [
+    "./SKILL.md"
+  ]
+}
