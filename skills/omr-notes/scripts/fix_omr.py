@@ -33,16 +33,37 @@ def set_timesig(score, ts_str):
 
 
 def rebar(score, ts_str):
-    out = stream.Score()
+    """Re-barline every part on a SHARED absolute timeline so bars stay vertically
+    aligned across parts. Each note keeps its score-absolute offset (not a
+    per-part re-pack, which shifts parts that start late or rest), and every part
+    is padded to the common end so bar counts match.
+
+    Note: this re-draws barlines faithfully to the source rhythm — it does not
+    invent missing beats. If Audiveris dropped beats (a part ends early), run
+    --fill as well (or fix the rhythm against the scan).
+    """
+    import copy
+    collected, total = [], 0.0
     for p in score.parts:
-        flat = p.flatten().notesAndRests.stream()
+        evs = []
+        for m in p.getElementsByClass("Measure"):
+            for n in m.notesAndRests:
+                evs.append((m.offset + n.offset, copy.deepcopy(n)))  # absolute, reliable
+        end = max((o + n.quarterLength for o, n in evs), default=0.0)
+        total = max(total, end)
+        collected.append((p.partName, evs, end))
+
+    out = stream.Score()
+    for name, evs, end in collected:
         np_ = stream.Part()
+        np_.partName = name
         np_.insert(0, meter.TimeSignature(ts_str))
-        for el in flat:
-            np_.insert(el.offset, el)
+        for off, n in evs:
+            np_.insert(off, n)
+        if total - end > 0.01:                      # pad so all parts share bar count
+            np_.insert(end, note.Rest(quarterLength=total - end))
         np_.makeMeasures(inPlace=True)
         np_.makeRests(fillGaps=True, inPlace=True)
-        np_.partName = p.partName
         out.insert(0, np_)
     return out
 

@@ -18,8 +18,8 @@ title first, so every piece is recognised on its own.
 # full pipeline: split -> recognise -> render check
 python3 scripts/omr.py IMAGE.jpg -o OUTDIR --engine audiveris --render --debug
 
-# let the skill pick the best recognition automatically (recommended for photos)
-python3 scripts/omr.py IMAGE.jpg -o OUTDIR --best --render
+# recommended for photos: pick the best recognition AND auto-repair clipped bars
+python3 scripts/omr.py IMAGE.jpg -o OUTDIR --best --repair --render
 ```
 
 Outputs under `OUTDIR/<image>/`:
@@ -59,10 +59,25 @@ python3 scripts/fix_omr.py piece.mxl piece_fixed.musicxml --fill          # exte
 python3 scripts/fix_omr.py piece.mxl piece_fixed.musicxml --ts 3/4 --rebar --fill  # wrong meter
 ```
 `--fill` extends short bars (Audiveris often truncates a bar's last beat),
-`--ts`/`--rebar` fix a misread meter; pickups are preserved. It fixes *structure*,
-not transcription — verify against the scan. The full path from raw recognition
-to a clean score (with worked examples) is in
+`--ts`/`--rebar` fix a misread meter (`--rebar` re-barlines all parts on a shared
+timeline so they stay aligned); pickups are preserved. It fixes *structure*, not
+transcription — verify against the scan.
+
+`omr.py --repair` applies the **safe** part of this automatically: after choosing
+a result it runs `fix_omr --fill` and keeps it only if the QA penalty drops (so
+`--best --repair` takes clipped-bar WARNs straight to PASS). `--ts`/`--rebar` stay
+manual because they need judgement. The full path (with worked examples) is in
 [`references/correction-workflow.md`](references/correction-workflow.md).
+
+## Export to PDF / MIDI (`export.py`)
+
+```bash
+python3 scripts/export.py SCORE.mxl --pdf sheet.pdf --midi score.mid \
+    --title "Божья коровка" --composer "словен. нар. песня"
+```
+Titled, A4 sheet via verovio (multi-page merged); `--title`/`--composer` override
+the filename Audiveris leaves as the title. For piano *audio*, use the companion
+`notes-to-piano` skill.
 
 ## Engine choice (tested findings)
 

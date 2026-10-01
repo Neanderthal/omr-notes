@@ -13,10 +13,12 @@ recognise ──▶ QA check ──▶ auto-repair ──▶ re-check ──▶ 
 ## 1. Recognise, picking the best run
 
 ```bash
-python3 scripts/omr.py PAGE.jpg -o out --best --render
+python3 scripts/omr.py PAGE.jpg -o out --best --repair --render
 ```
 `--best` tries audiveris(±binarize ±dewarp) + oemer and keeps the lowest QA
-penalty per piece. Different pieces may win with different configs.
+penalty per piece. Different pieces may win with different configs. `--repair`
+then runs the safe `fix_omr --fill` and keeps it if QA improves — clipped-bar
+WARNs often go straight to PASS here, with no manual step.
 
 ## 2. Read the QA verdict
 

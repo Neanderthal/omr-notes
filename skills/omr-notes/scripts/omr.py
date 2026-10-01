@@ -121,6 +121,25 @@ def qa(xml):
         return {"penalty": 999, "verdict": "FAIL", "issues": ["QA check failed"]}
 
 
+def repair(xml, q, outdir):
+    """Try the SAFE auto-repair (fix_omr --fill, which extends bars Audiveris
+    clipped) and keep it only if QA actually improves. Returns (xml, qa) —
+    the repaired pair if better, else the original. --fill only: --ts/--rebar
+    need human judgement, so they stay manual."""
+    if not xml or q["penalty"] == 0:
+        return xml, q
+    out = outdir / f"{Path(xml).stem}_repaired.musicxml"
+    r = run([PYTHON, HERE / "fix_omr.py", xml, out, "--fill"],
+            capture_output=True, text=True)
+    if r.returncode != 0 or not out.exists():
+        return xml, q
+    rq = qa(str(out))
+    if rq["penalty"] < q["penalty"]:
+        print(f"      repaired: pen {q['penalty']} -> {rq['penalty']}", file=sys.stderr)
+        return out, rq
+    return xml, q
+
+
 def process_normal(image, args, engines):
     piece_dir = args.outdir / image.stem
     if args.no_split:
@@ -135,13 +154,15 @@ def process_normal(image, args, engines):
         for eng in engines:
             eng_dir = piece_dir / eng
             xml = ENGINES[eng](piece, eng_dir)
+            status = "ok" if xml else "FAILED"
+            q = qa(str(xml) if xml else None) if (args.check or args.repair) else None
+            if args.repair and xml:
+                xml, q = repair(xml, q, eng_dir)
             rendered = render(xml, eng_dir) if (xml and args.render) else None
             rec = {"image": image.name, "piece": piece.name, "engine": eng,
                    "musicxml": str(xml) if xml else None,
                    "render": str(rendered) if rendered else None}
-            status = "ok" if xml else "FAILED"
-            if args.check:
-                q = qa(str(xml) if xml else None)
+            if q is not None:
                 rec["qa"] = q
                 status += f"  [QA {q['verdict']} pen={q['penalty']}]"
                 for i in q["issues"]:
@@ -183,12 +204,16 @@ def process_best(image, args):
             print(f"    {c['label']:24} QA {c['qa']['verdict']:5} pen={c['qa']['penalty']}",
                   file=sys.stderr)
         win = cands[0]
+        win_xml, win_qa = win["xml"], win["qa"]
+        if args.repair:
+            win_xml, win_qa = repair(win_xml, win_qa, best_dir)
         dest = None
-        if win["xml"]:
-            dest = best_dir / f"{image.stem}_piece{idx:02d}{Path(win['xml']).suffix}"
-            shutil.copyfile(win["xml"], dest)
+        if win_xml:
+            dest = best_dir / f"{image.stem}_piece{idx:02d}{Path(win_xml).suffix}"
+            shutil.copyfile(win_xml, dest)
         rendered = render(dest, best_dir) if (dest and args.render) else None
-        print(f"  ⇒ winner: {win['label']} (pen={win['qa']['penalty']})", file=sys.stderr)
+        print(f"  ⇒ winner: {win['label']} (pen={win_qa['penalty']})", file=sys.stderr)
+        win = {**win, "qa": win_qa}
         results.append({"image": image.name, "piece": idx, "winner": win["label"],
                         "musicxml": str(dest) if dest else None,
                         "render": str(rendered) if rendered else None,
@@ -217,6 +242,8 @@ def main():
                     help="run structural QA on each result and print a verdict")
     ap.add_argument("--best", action="store_true",
                     help="try several engine/flag configs and keep the lowest-penalty one")
+    ap.add_argument("--repair", action="store_true",
+                    help="auto-repair the result with fix_omr --fill, kept only if QA improves")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
