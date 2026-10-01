@@ -63,6 +63,75 @@ def rotate(img, angle, border):
                           borderMode=cv2.BORDER_CONSTANT, borderValue=border)
 
 
+def dewarp(img, gray, strips=24, max_shift_frac=0.06):
+    """Flatten page *curvature* (not just tilt): photographed book pages bow, so
+    staff lines arch and deskew (a single global rotation) cannot straighten them
+    — which makes Audiveris fail with "No regularly spaced lines found".
+
+    Method: slice into vertical strips, build each strip's horizontal-ink
+    row-profile (all its staff lines at once), and cross-correlate every strip
+    against the centre strip to find the vertical shift that re-aligns it. This is
+    robust on bands with several staves (a per-column ink centroid is not — it
+    jumps between staves). Shifts are capped, then interpolated to a smooth
+    per-column displacement and remapped out.
+
+    Applied per *piece* crop (after splitting), where the staves are local and the
+    curvature small — not to the whole page, which would blur the title gaps the
+    splitter needs. Returns (dewarped_image, curvature_px).
+    """
+    h, w = gray.shape
+    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    hk = cv2.getStructuringElement(cv2.MORPH_RECT, (max(10, int(w * 0.03)), 1))
+    lines = cv2.morphologyEx(bw, cv2.MORPH_OPEN, hk).astype(np.float64)
+
+    edges = np.linspace(0, w, strips + 1).astype(int)
+    profiles = []
+    for i in range(strips):
+        p = lines[:, edges[i]:edges[i + 1]].sum(axis=1)
+        profiles.append(p - p.mean())
+    ref = profiles[strips // 2]
+    if float((ref ** 2).sum()) <= 0:            # no staff signal → nothing to do
+        return img, 0.0
+
+    max_shift = max(2, int(max_shift_frac * h))
+    shifts = np.zeros(strips)
+    for i, p in enumerate(profiles):
+        offsets = np.arange(-max_shift, max_shift + 1)
+        corr = [float((np.roll(p, s) * ref).sum()) for s in offsets]
+        shifts[i] = offsets[int(np.argmax(corr))]
+
+    centers = (edges[:-1] + edges[1:]) / 2.0
+    xs = np.arange(w)
+    d = np.interp(xs, centers, shifts)
+    k = (max(5, int(w * 0.04)) | 1)
+    pad = k // 2
+    d = np.convolve(np.pad(d, pad, mode="edge"), np.ones(k) / k, mode="valid")
+    d -= np.median(d)
+    curvature = float(d.max() - d.min())
+
+    ys = np.arange(h).reshape(-1, 1)
+    map_x = np.tile(xs.astype(np.float32), (h, 1))
+    map_y = (ys - d.reshape(1, -1)).astype(np.float32)
+
+    bv = (255, 255, 255) if img.ndim == 3 else 255
+    out = cv2.remap(img, map_x, map_y, cv2.INTER_CUBIC,
+                    borderMode=cv2.BORDER_CONSTANT, borderValue=bv)
+    return out, curvature
+
+
+def binarize_for_omr(gray):
+    """Clean bitonal image for Audiveris: normalize uneven lighting/paper tone
+    (divide by a morphological background estimate), then Otsu-threshold. Yields
+    black ink on white, which the OMR scale/staff detectors handle far better
+    than a raw colour phone photo."""
+    bg = cv2.morphologyEx(
+        gray, cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)))
+    norm = cv2.divide(gray, bg, scale=255)
+    _, bw = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    return bw
+
+
 def _bands(mask, gap=10):
     """Group True rows of a boolean mask into (y0, y1) bands, merging gaps<=gap."""
     ys = np.where(mask)[0]
@@ -168,6 +237,10 @@ def main():
     ap.add_argument("--scale", type=float, default=3.0)
     ap.add_argument("--pad", type=int, default=8)
     ap.add_argument("--no-deskew", action="store_true")
+    ap.add_argument("--dewarp", action="store_true",
+                    help="flatten page curvature before splitting (bowed photos)")
+    ap.add_argument("--binarize", action="store_true",
+                    help="save clean bitonal crops for OMR instead of colour")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
@@ -194,17 +267,25 @@ def main():
     stem = args.image.stem
 
     out = []
+    max_curv = 0.0
     for idx, (a, b) in enumerate(ranges, 1):
         y0 = max(0, a - args.pad)
         y1 = min(h, b + args.pad)
-        crop = color[y0:y1]
+        crop = (gray if args.binarize else color)[y0:y1].copy()
+        curv = 0.0
+        if args.dewarp:                      # per-piece: staves local, curvature small
+            cg = crop if args.binarize else cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            crop, curv = dewarp(crop, cg)
+            max_curv = max(max_curv, curv)
         if args.scale and args.scale != 1.0:
             crop = cv2.resize(crop, None, fx=args.scale, fy=args.scale,
                               interpolation=cv2.INTER_CUBIC)
+        if args.binarize:
+            crop = binarize_for_omr(crop)
         name = args.outdir / f"{stem}_piece{idx:02d}.png"
         cv2.imwrite(str(name), crop)
-        out.append({"index": idx, "file": str(name),
-                    "src_rows": [y0, y1], "size": [crop.shape[1], crop.shape[0]]})
+        out.append({"index": idx, "file": str(name), "src_rows": [y0, y1],
+                    "dewarp_px": round(curv, 1), "size": [crop.shape[1], crop.shape[0]]})
 
     if args.debug:
         ov = color.copy()
@@ -214,7 +295,10 @@ def main():
         cv2.imwrite(str(dbg), ov)
 
     print(json.dumps({"image": str(args.image), "pieces": len(ranges),
-                      "skew_deg": round(angle, 2), "cuts": cuts, "outputs": out},
+                      "skew_deg": round(angle, 2),
+                      "dewarp_curvature_px": round(max_curv, 1) if args.dewarp else None,
+                      "binarized": bool(args.binarize),
+                      "cuts": cuts, "outputs": out},
                      ensure_ascii=False, indent=2))
     return 0
 

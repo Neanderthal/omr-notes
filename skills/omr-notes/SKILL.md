@@ -35,11 +35,25 @@ Outputs under `OUTDIR/<image>/`:
 
 ## Splitting controls
 
-Auto-detection uses the largest "natural break" in vertical whitespace. Override:
+Auto-detection cuts above each *title* (a wide text block after staff content),
+which is robust to page numbers and inter-system gaps. Override:
 - `--pieces N` — force exactly N pieces
 - `--min-gap PX` — a whitespace gap ≥ PX is a boundary
 - `--no-split` — treat the whole image as one piece
 - `--scale F` — upscale factor for crops (default 3.0)
+
+Photo cleanup (help Audiveris on raw phone photos):
+- `--binarize` — feed clean black-on-white crops (background-normalized + Otsu)
+  instead of the raw colour photo. **This is usually what makes Audiveris accept a
+  phone photo** (it fails with "No regularly spaced lines found" on low-contrast or
+  tinted scans).
+- `--dewarp` — flatten page *curvature* per piece (deskew only fixes tilt, not the
+  bow of a photographed book page). Strip-wise profile cross-correlation; capped
+  shift. Check `_render` after — on already-flat scans it's a no-op.
+
+> If Audiveris still fails with "No regularly spaced lines found", first confirm the
+> image actually contains staves (not a cover/title page) — that error also appears
+> when there is simply no music on the page.
 
 Always check `_overlay.png` (with `--debug`); re-run with an override if a cut is wrong.
 

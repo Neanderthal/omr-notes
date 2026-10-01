@@ -43,6 +43,10 @@ def split(image, outdir, args):
         cmd += ["--pieces", args.pieces]
     if args.min_gap:
         cmd += ["--min-gap", args.min_gap]
+    if args.dewarp:
+        cmd += ["--dewarp"]
+    if args.binarize:
+        cmd += ["--binarize"]
     if args.debug:
         cmd += ["--debug"]
     r = run(cmd, capture_output=True, text=True)
@@ -95,6 +99,10 @@ def main():
     ap.add_argument("--pieces", type=int, default=None)
     ap.add_argument("--min-gap", type=int, default=None)
     ap.add_argument("--scale", type=float, default=3.0)
+    ap.add_argument("--dewarp", action="store_true",
+                    help="flatten page curvature before splitting (bowed photos)")
+    ap.add_argument("--binarize", action="store_true",
+                    help="feed clean bitonal crops to the OMR engine")
     ap.add_argument("--render", action="store_true")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
