@@ -40,10 +40,14 @@ classic one here: the melody staff and the piano grand staff get recognised
   time signature, unequal measure counts, a time signature not at bar 1, and
   zero-length notes.
 - **`--best`** runs several engine/flag configs (audiveris ±binarize ±dewarp,
-  oemer ±binarize), scores each with the QA checker, and **keeps the lowest-penalty
-  one** per piece into `best/`. This is how `--binarize --dewarp` was found to fix
-  the shifted-voice bug on a real page (penalty 186 → 0). `--best` ignores
-  `--engine`.
+  a low-res audiveris pass, oemer ±binarize), scores each with the QA checker, and
+  **keeps the lowest-penalty one** per piece into `best/`. This is how
+  `--binarize --dewarp` was found to fix the shifted-voice bug on a real page
+  (penalty 186 → 0). The low-res pass matters for **dense multi-system pages**: at
+  high resolution Audiveris often reads the staves *sequentially* (a bad grouping
+  the QA checker penalises heavily), while at ~half resolution it groups them into
+  one system — `--best` picks whichever scored better automatically. `--best`
+  ignores `--engine`.
 
 Run the checker standalone too:
 ```bash

@@ -36,13 +36,18 @@ PYTHON = Path(os.environ.get("OMR_PYTHON", HOME / "venv/bin/python"))
 AUDIVERIS = Path(os.environ.get("OMR_AUDIVERIS", HOME / "audiveris/bin/Audiveris"))
 HERE = Path(__file__).resolve().parent
 
-# configs tried by --best, roughly best-first (cheap wins early)
+# configs tried by --best: (engine, split-flags, scale-override). A low-res
+# audiveris pass is included because a dense multi-system page often groups into
+# one system correctly at lower resolution (high-res makes Audiveris read the
+# staves sequentially); the QA checker then picks whichever grouped correctly.
 BEST_CONFIGS = [
-    ("audiveris", ["--binarize", "--dewarp"]),
-    ("audiveris", ["--binarize"]),
-    ("audiveris", []),
-    ("oemer", ["--binarize"]),
-    ("oemer", []),
+    ("audiveris", ["--binarize", "--dewarp"], None),
+    ("audiveris", ["--binarize"], None),
+    ("audiveris", [], None),
+    ("audiveris", [], 0.5),   # plain low-res: groups dense multi-system pages as
+                              # one system (binarize at low res breaks grouping)
+    ("oemer", ["--binarize"], None),
+    ("oemer", [], None),
 ]
 
 
@@ -183,10 +188,13 @@ def process_best(image, args):
     # run every config; piece detection is independent of binarize/dewarp, so
     # piece indices line up across configs.
     per_piece = {}
-    for eng, sflags in BEST_CONFIGS:
+    for eng, sflags, scale_ov in BEST_CONFIGS:
+        scale = scale_ov if scale_ov is not None else args.scale
         label = "_".join([eng] + [f.lstrip("-") for f in sflags])
+        if scale_ov is not None:
+            label += f"_s{scale_ov}"
         cfg_dir = piece_dir / "configs" / label
-        pieces = split(image, cfg_dir / "pieces", args.scale, base + sflags, args.debug)
+        pieces = split(image, cfg_dir / "pieces", scale, base + sflags, args.debug)
         if not pieces:
             pieces = [image]
         for i, piece in enumerate(pieces, 1):
