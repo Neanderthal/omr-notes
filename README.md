@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="omr-notes — Optical Music Recognition for Claude Code: sheet-music photos and scans to editable MusicXML" width="100%">
+</p>
+
 # omr-notes
 
 **Optical Music Recognition (OMR) skill for [Claude Code](https://claude.com/claude-code).**

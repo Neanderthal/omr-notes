@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0}
+  body{width:1280px;height:320px;overflow:hidden;
+    font-family:"DejaVu Sans","Liberation Sans",sans-serif}
+</style></head>
+<body>
+<svg width="1280" height="320" viewBox="0 0 1280 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a1b2e"/>
+      <stop offset="0.55" stop-color="#0e2f4d"/>
+      <stop offset="1" stop-color="#0b3b47"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf6 e8"/>
+      <stop offset="0" stop-color="#fbf6e8"/>
+      <stop offset="1" stop-color="#ece3c8"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#19e6d0" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#2ff3dd" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#19e6d0" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect width="1280" height="320" fill="url(#bg)"/>
+  <!-- faint tech grid on the right -->
+  <g stroke="#2ff3dd" stroke-opacity="0.07">
+    <line x1="520" y1="0" x2="520" y2="320"/><line x1="600" y1="0" x2="600" y2="320"/>
+    <line x1="680" y1="0" x2="680" y2="320"/><line x1="760" y1="0" x2="760" y2="320"/>
+    <line x1="840" y1="0" x2="840" y2="320"/><line x1="920" y1="0" x2="920" y2="320"/>
+    <line x1="1000" y1="0" x2="1000" y2="320"/><line x1="1080" y1="0" x2="1080" y2="320"/>
+    <line x1="1160" y1="0" x2="1160" y2="320"/><line x1="1240" y1="0" x2="1240" y2="320"/>
+    <line x1="0" y1="60" x2="1280" y2="60"/><line x1="0" y1="140" x2="1280" y2="140"/>
+    <line x1="0" y1="220" x2="1280" y2="220"/><line x1="0" y1="300" x2="1280" y2="300"/>
+  </g>
+
+  <!-- LEFT: scanned paper with printed staff -->
+  <g transform="rotate(-5 210 160)">
+    <rect x="48" y="58" width="300" height="204" rx="8" fill="url(#paper)"
+          stroke="#c9bd98" stroke-width="1.5"/>
+    <!-- staff lines -->
+    <g stroke="#2a2a2a" stroke-width="1.4">
+      <line x1="76" y1="120" x2="320" y2="120"/><line x1="76" y1="134" x2="320" y2="134"/>
+      <line x1="76" y1="148" x2="320" y2="148"/><line x1="76" y1="162" x2="320" y2="162"/>
+      <line x1="76" y1="176" x2="320" y2="176"/>
+    </g>
+    <!-- treble clef (simplified) -->
+    <text x="78" y="182" font-size="86" fill="#1c1c1c"
+          font-family="DejaVu Serif,serif">&#119070;</text>
+    <!-- notes -->
+    <g fill="#1c1c1c">
+      <ellipse cx="150" cy="162" rx="9" ry="6.5" transform="rotate(-20 150 162)"/>
+      <rect x="158" y="120" width="2.4" height="44"/>
+      <ellipse cx="192" cy="148" rx="9" ry="6.5" transform="rotate(-20 192 148)"/>
+      <rect x="200" y="106" width="2.4" height="44"/>
+      <ellipse cx="234" cy="134" rx="9" ry="6.5" transform="rotate(-20 234 134)"/>
+      <rect x="242" y="92" width="2.4" height="44"/>
+      <ellipse cx="276" cy="155" rx="9" ry="6.5" transform="rotate(-20 276 155)"/>
+      <rect x="284" y="113" width="2.4" height="44"/>
+    </g>
+    <!-- second shorter staff hint -->
+    <g stroke="#2a2a2a" stroke-width="1.1" stroke-opacity="0.8">
+      <line x1="76" y1="206" x2="300" y2="206"/><line x1="76" y1="216" x2="300" y2="216"/>
+      <line x1="76" y1="226" x2="300" y2="226"/>
+    </g>
+  </g>
+
+  <!-- scan beam + arrow -->
+  <rect x="372" y="36" width="10" height="248" fill="url(#beam)" filter="url(#glow)"/>
+  <g fill="#2ff3dd" filter="url(#glow)">
+    <path d="M398 160 h40 v-9 l20 14 -20 14 v-9 h-40 z"/>
+  </g>
+
+  <!-- RIGHT: clean digital notation -->
+  <g>
+    <g stroke="#7fe9df" stroke-width="1.6" stroke-opacity="0.9">
+      <line x1="470" y1="210" x2="700" y2="210"/><line x1="470" y1="224" x2="700" y2="224"/>
+      <line x1="470" y1="238" x2="700" y2="238"/><line x1="470" y1="252" x2="700" y2="252"/>
+      <line x1="470" y1="266" x2="700" y2="266"/>
+    </g>
+    <g fill="#eafffb" filter="url(#glow)">
+      <ellipse cx="520" cy="252" rx="8" ry="6"/><rect x="527" y="214" width="2.4" height="40"/>
+      <ellipse cx="560" cy="238" rx="8" ry="6"/><rect x="567" y="200" width="2.4" height="40"/>
+      <ellipse cx="600" cy="224" rx="8" ry="6"/><rect x="607" y="186" width="2.4" height="40"/>
+      <ellipse cx="640" cy="245" rx="8" ry="6"/><rect x="647" y="207" width="2.4" height="40"/>
+      <ellipse cx="680" cy="231" rx="8" ry="6"/><rect x="687" y="193" width="2.4" height="40"/>
+    </g>
+    <!-- floating note glyphs -->
+    <text x="900" y="250" font-size="40" fill="#2ff3dd" fill-opacity="0.55"
+          filter="url(#glow)">&#9835;</text>
+    <text x="1120" y="235" font-size="30" fill="#7fe9df" fill-opacity="0.5">&#9834;</text>
+    <text x="1030" y="275" font-size="24" fill="#7fe9df" fill-opacity="0.4">&#9833;</text>
+  </g>
+
+  <!-- TITLE -->
+  <text x="472" y="118" font-size="72" font-weight="bold" fill="#ffffff"
+        letter-spacing="-1">omr-notes</text>
+  <text x="476" y="156" font-size="23" fill="#7fe9df" font-weight="600">
+    Optical Music Recognition &#183; a Claude Code skill</text>
+  <text x="476" y="184" font-size="18" fill="#c7d6e2">
+    sheet-music photos &amp; scans &#8594; editable MusicXML</text>
+
+  <!-- engine pills -->
+  <g font-size="14.5" fill="#bfeee8" font-weight="600">
+    <rect x="476" y="196" width="104" height="26" rx="13" fill="#15394d" stroke="#2ff3dd" stroke-opacity="0.4"/>
+    <text x="492" y="214">Audiveris</text>
+    <rect x="590" y="196" width="78" height="26" rx="13" fill="#15394d" stroke="#2ff3dd" stroke-opacity="0.4"/>
+    <text x="606" y="214">oemer</text>
+    <rect x="678" y="196" width="110" height="26" rx="13" fill="#15394d" stroke="#2ff3dd" stroke-opacity="0.4"/>
+    <text x="694" y="214">MuseScore</text>
+  </g>
+</svg>
+</body></html>
