@@ -36,15 +36,20 @@ def check(path):
     parts = [p for p in s.parts]
     issues, penalty = [], 0.0
 
+    tss = list(s.recurse().getElementsByClass(TimeSignature))
+    bar_ql = tss[0].barDuration.quarterLength if tss else 4.0
+
     voiced = [(p, note_span(p)) for p in parts]
     voiced = [(p, sp) for p, sp in voiced if sp]
 
-    # 1. parts start together?
+    # 1. parts start together?  Only a gap of a whole bar or more is a real fault
+    #    — a 1–2 beat spread is normal (a pickup, or a bass that rests on the
+    #    anacrusis), not the shifted-voice bug.
     starts = [sp[0] for _, sp in voiced]
     if len(starts) > 1:
         spread = max(starts) - min(starts)
-        if spread >= 1.0:
-            bars = spread / 4.0  # rough, assumes ~4/4
+        if spread >= bar_ql:
+            bars = spread / bar_ql
             penalty += 50 + spread
             issues.append(f"parts start misaligned by {spread:g} beats (~{bars:g} bars)")
 
@@ -63,14 +68,29 @@ def check(path):
             issues.append(f"parts barely overlap in time ({worst:.0%}) — recognised "
                           f"sequentially, not as one system")
 
-    # 3. measure duration vs its time signature
+    # 3. measure duration vs its time signature — but a pickup (anacrusis) is
+    #    legal: measure 0, a padded measure, or a first/last pair that together
+    #    sum to one full bar.
+    def content(m):   # actual beats present = notes + rests (a correct bar fills exactly)
+        return sum(n.quarterLength for n in m.notesAndRests)
+
     bad_measures = 0
     for p in parts:
-        for m in p.getElementsByClass("Measure"):
+        ms = list(p.getElementsByClass("Measure"))
+        if not ms:
+            continue
+        anacrusis_pair = (len(ms) >= 2 and
+                          abs(content(ms[0]) + content(ms[-1])
+                              - ms[0].barDuration.quarterLength) < 0.01)
+        for m in ms:
             exp = m.barDuration.quarterLength
-            act = m.duration.quarterLength
-            if m.notes and abs(act - exp) > 0.01 and m.paddingLeft == 0 and m.paddingRight == 0:
-                bad_measures += 1
+            if not m.notesAndRests or abs(content(m) - exp) <= 0.01:
+                continue
+            if m.number == 0:                       # explicit pickup bar
+                continue
+            if anacrusis_pair and m in (ms[0], ms[-1]):
+                continue
+            bad_measures += 1
     if bad_measures:
         penalty += 8 * bad_measures
         issues.append(f"{bad_measures} measure(s) have wrong duration vs time signature")
@@ -98,7 +118,7 @@ def check(path):
         penalty += 3 * zeros
         issues.append(f"{zeros} zero-length note(s)")
 
-    verdict = "PASS" if penalty < 20 else ("WARN" if penalty < 80 else "FAIL")
+    verdict = "PASS" if penalty < 8 else ("WARN" if penalty < 80 else "FAIL")
     return {"file": path, "parts": len(parts), "penalty": round(penalty, 1),
             "verdict": verdict, "issues": issues}
 

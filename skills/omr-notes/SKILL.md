@@ -50,6 +50,20 @@ Run the checker standalone too:
 python3 scripts/check_musicxml.py SCORE.mxl
 ```
 
+## Repairing a WARN/FAIL (`fix_omr.py`)
+
+`scripts/fix_omr.py` is a deterministic auto-repair — the scriptable half of the
+usual MuseScore clean-up:
+```bash
+python3 scripts/fix_omr.py piece.mxl piece_fixed.musicxml --fill          # extend clipped bars
+python3 scripts/fix_omr.py piece.mxl piece_fixed.musicxml --ts 3/4 --rebar --fill  # wrong meter
+```
+`--fill` extends short bars (Audiveris often truncates a bar's last beat),
+`--ts`/`--rebar` fix a misread meter; pickups are preserved. It fixes *structure*,
+not transcription — verify against the scan. The full path from raw recognition
+to a clean score (with worked examples) is in
+[`references/correction-workflow.md`](references/correction-workflow.md).
+
 ## Engine choice (tested findings)
 
 - **audiveris** (default) — best structural fidelity on printed multi-staff
