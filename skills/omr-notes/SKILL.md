@@ -83,11 +83,24 @@ Titled, A4 sheet via verovio (multi-page merged); `--title`/`--composer` overrid
 the filename Audiveris leaves as the title. For piano *audio*, use the companion
 `notes-to-piano` skill.
 
+## Input from a PDF
+
+Render the page to an image first, at roughly **2× the embedded scan's native
+resolution** — do NOT blindly use 300 dpi:
+```bash
+pdfimages -list IN.pdf            # see the real embedded image size (e.g. 1500x2101)
+pdftoppm -r 200 -png IN.pdf page  # ~2x of a 1500px scan; keeps detail, stays < 20 MP
+```
+Over-rendering a low-res scan to 300 dpi just interpolates (blurs) it and can blow
+past Audiveris's 20 MP limit — both hurt recognition.
+
 ## Engine choice (tested findings)
 
 - **audiveris** (default) — best structural fidelity on printed multi-staff
   scores; has a GUI editor for corrections. Needs decent resolution, so the
-  splitter upscales crops 3× by default (`--scale`). Rejects tiny images.
+  splitter upscales crops 3× by default (`--scale`). Rejects tiny images. When it
+  splits a piece into movements (`.mvt1`, `.mvt2`, … — triggered by an indented
+  line mid-piece), the orchestrator stitches them back into one continuous score.
 - **oemer** — tolerant of raw phone photos, one `pip`, but garbles clefs/staves
   on complex layouts. Better on single-line melodies.
 - **both** — run each and compare renders.

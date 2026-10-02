@@ -101,7 +101,16 @@ def recognise_audiveris(piece, outdir):
     outdir.mkdir(parents=True, exist_ok=True)
     run([AUDIVERIS, "-batch", "-export", "-output", outdir, piece],
         capture_output=True, text=True)
-    return _first_output(outdir, piece.stem, "mxl")
+    movs = sorted(outdir.glob(f"{piece.stem}*.mxl"))   # .mvt1.mxl, .mvt2.mxl, …
+    if len(movs) <= 1:
+        return movs[0] if movs else None
+    # Audiveris split the piece into movements (usually just indented lines of the
+    # same work) — stitch them back into one continuous score, else we'd keep only
+    # the first few bars.
+    merged = outdir / f"{piece.stem}_merged.musicxml"
+    r = run([PYTHON, HERE / "merge_movements.py", merged, *movs],
+            capture_output=True, text=True)
+    return merged if (r.returncode == 0 and merged.exists()) else movs[0]
 
 
 ENGINES = {"oemer": recognise_oemer, "audiveris": recognise_audiveris}
