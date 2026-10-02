@@ -104,6 +104,12 @@ past Audiveris's 20 MP limit — both hurt recognition.
 - **oemer** — tolerant of raw phone photos, one `pip`, but garbles clefs/staves
   on complex layouts. Better on single-line melodies.
 - **both** — run each and compare renders.
+- **TrOMR** (fallback, separate setup) — a transformer **single-staff** recogniser
+  ([NetEase/Polyphonic-TrOMR](https://github.com/NetEase/Polyphonic-TrOMR)) for a
+  second opinion on a staff whose *pitches* Audiveris got wrong. Reads one staff at
+  a time (grand staff → staff-by-staff, parts may not bar-align). Setup +
+  usage: [`references/tromr-fallback.md`](references/tromr-fallback.md)
+  (`scripts/tromr_setup.sh`, `scripts/tromr_omr.py`).
 
 ## Splitting controls
 
