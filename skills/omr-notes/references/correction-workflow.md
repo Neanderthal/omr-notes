@@ -65,6 +65,21 @@ compare the render to the original scan.
 | Эстонская мелодия | WARN 24 | WARN 26 | needs bar-count fix (unequal systems) — MuseScore |
 | Нинна, нанна | FAIL 136 | WARN 8 | `--ts 3/4 --rebar --fill` fixes the meter, but dropped bass beats + a merged bar leave a rebar artifact — **faithful finish needs MuseScore** |
 
+## 4b. Octave (8va / ottava) errors
+
+OMR engines routinely miss the dashed **8va** line above a staff, leaving those
+notes an octave off (and the audio an octave low). Fix deterministically:
+
+```bash
+# suggest candidate ottava regions (never edits — review before applying):
+python3 scripts/detect_ottava.py SYSTEM.png
+# apply the shift explicitly to a part's measure range (+1 = 8va, -1 = 8vb):
+python3 scripts/fix_omr.py IN OUT --octave '0:5-12:+1'
+```
+`fix_omr --octave` is exact and safe; `detect_ottava.py` is best-effort (it depends
+on finding the staff, which is hard under the very dense notation that tends to
+carry an ottava) and only prints suggestions.
+
 ## 5. When to stop scripting and open MuseScore
 
 `--fill`/`--ts`/`--rebar` fix *structure*. When beats are genuinely missing

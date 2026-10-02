@@ -93,6 +93,30 @@ def fill_short_bars(score):
     return filled
 
 
+def apply_octaves(score, spec):
+    """Transpose measure ranges by whole octaves. spec: 'P:A-B:S[,...]' where P is a
+    part index, A-B an inclusive measure-number range, S the octave shift (+1 = 8va,
+    -1 = 8vb). For ottava lines the OMR engine missed."""
+    parts = list(score.parts)
+    shifted = 0
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        pstr, rng, sstr = item.split(":")
+        p = int(pstr)
+        a, b = (int(x) for x in rng.split("-"))
+        semis = int(sstr) * 12
+        if p >= len(parts):
+            continue
+        for m in parts[p].getElementsByClass("Measure"):
+            if a <= m.measureNumber <= b:
+                for n in m.notes:
+                    n.transpose(semis, inPlace=True)
+                    shifted += 1
+    return shifted
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("inp")
@@ -100,6 +124,9 @@ def main():
     ap.add_argument("--ts", help="replace time signature, e.g. 3/4")
     ap.add_argument("--rebar", action="store_true")
     ap.add_argument("--fill", action="store_true")
+    ap.add_argument("--octave", help="apply ottava octave shifts, e.g. "
+                    "'0:5-12:+1,1:5-12:+1' = part 0 & 1, measures 5-12, up an octave "
+                    "(use -1 for 8vb). Fixes 8va lines OMR missed.")
     args = ap.parse_args()
 
     s = converter.parse(args.inp)
@@ -109,6 +136,9 @@ def main():
         if not args.ts:
             sys.exit("--rebar needs --ts A/B")
         s = rebar(s, args.ts)
+    if args.octave:
+        n = apply_octaves(s, args.octave)
+        print(f"octave-shifted {n} note(s)", file=sys.stderr)
     if args.fill:
         n = fill_short_bars(s)
         print(f"filled {n} short bar(s)", file=sys.stderr)
