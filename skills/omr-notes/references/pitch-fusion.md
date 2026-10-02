@@ -24,10 +24,18 @@ python3 scripts/fuse_pitches.py AUDIVERIS.mxl TROMR.musicxml -o fused.musicxml
 
 ## Guarantees / behaviour
 - **Pitch only** — rhythm/durations/ties/measures/structure are never touched.
-- Safe on clean scores: on the Minuet both engines agree → ~0 changes, QA stays PASS.
-- Low agreement is handled: if a part's matched fraction is low, only the few
-  well-aligned notes change (Audiveris pitches are otherwise kept). Always re-check
-  with `check_musicxml.py` and eyeball the render.
+- **Agreement gate (the key safety rule):** a part is only corrected when TrOMR
+  already agrees with Audiveris on ≥ 80 % of the aligned notes. High agreement means
+  TrOMR's read is trustworthy, so the few disagreements are credible corrections of
+  Audiveris. Low agreement means TrOMR is unreliable *here* → the whole part is
+  **skipped** and Audiveris is kept verbatim. (This is what makes blind fusion safe:
+  a structural QA check can't tell a good pitch swap from a bad one, so we gate on
+  cross-engine agreement instead.)
+- Also skips a part when the two measure counts don't correspond.
+- Net effect: on a clean page TrOMR disagrees too much → everything is skipped, no
+  corruption; where Audiveris is mostly-right with a few pitch slips → those get
+  fixed. `omr.py --fuse` additionally keeps the fused result only if QA is no worse.
+  Still eyeball the render.
 
 ## Known limits (v1)
 - `staff_split` can merge two staves of a tightly-spaced grand staff into one —

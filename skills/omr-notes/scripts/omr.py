@@ -34,6 +34,7 @@ from pathlib import Path
 HOME = Path(os.environ.get("OMR_HOME", Path.home() / ".local/share/omr-notes"))
 PYTHON = Path(os.environ.get("OMR_PYTHON", HOME / "venv/bin/python"))
 AUDIVERIS = Path(os.environ.get("OMR_AUDIVERIS", HOME / "audiveris/bin/Audiveris"))
+TROMR_PY = Path(os.environ.get("TROMR_PY", Path.home() / ".local/share/tromr/venv/bin/python"))
 HERE = Path(__file__).resolve().parent
 
 # configs tried by --best: (engine, split-flags, scale-override). A low-res
@@ -154,6 +155,26 @@ def repair(xml, q, outdir):
     return xml, q
 
 
+def fuse(xml, q, piece, outdir):
+    """Overlay TrOMR pitches (fuse_omr --from-mxl) and keep the fused score only if
+    QA is no worse. Needs the TrOMR env; a no-op if it isn't set up."""
+    if not xml or not TROMR_PY.exists():
+        return xml, q
+    out = outdir / f"{Path(xml).stem}_fused.musicxml"
+    r = run([PYTHON, HERE / "fuse_omr.py", piece, "--from-mxl", xml, "-o", out],
+            capture_output=True, text=True)
+    for ln in r.stderr.splitlines():
+        if ln.strip().startswith("part ") or "match" in ln:
+            print(f"      {ln.strip()}", file=sys.stderr)
+    if r.returncode != 0 or not out.exists():
+        return xml, q
+    fq = qa(str(out))
+    if fq["penalty"] <= (q["penalty"] if q else 1e9):
+        return out, fq
+    print("      fuse worsened QA — kept pre-fusion", file=sys.stderr)
+    return xml, q
+
+
 def process_normal(image, args, engines):
     piece_dir = args.outdir / image.stem
     if args.no_split:
@@ -169,9 +190,11 @@ def process_normal(image, args, engines):
             eng_dir = piece_dir / eng
             xml = ENGINES[eng](piece, eng_dir)
             status = "ok" if xml else "FAILED"
-            q = qa(str(xml) if xml else None) if (args.check or args.repair) else None
+            q = qa(str(xml) if xml else None) if (args.check or args.repair or args.fuse) else None
             if args.repair and xml:
                 xml, q = repair(xml, q, eng_dir)
+            if args.fuse and xml and eng == "audiveris":
+                xml, q = fuse(xml, q, piece, eng_dir)
             rendered = render(xml, eng_dir) if (xml and args.render) else None
             rec = {"image": image.name, "piece": piece.name, "engine": eng,
                    "musicxml": str(xml) if xml else None,
@@ -261,6 +284,9 @@ def main():
                     help="try several engine/flag configs and keep the lowest-penalty one")
     ap.add_argument("--repair", action="store_true",
                     help="auto-repair the result with fix_omr --fill, kept only if QA improves")
+    ap.add_argument("--fuse", action="store_true",
+                    help="overlay TrOMR pitches on the Audiveris result (needs TrOMR env), "
+                         "kept only if QA is no worse")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 

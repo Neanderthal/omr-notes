@@ -47,26 +47,9 @@ def tromr_part(png, out_xml):
         return None
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("image")
-    ap.add_argument("-o", "--out", required=True)
-    ap.add_argument("--scale", type=float, default=3.0,
-                    help="upscale staff crops for Audiveris (default 3.0)")
-    args = ap.parse_args()
-
-    color = cv2.imread(args.image)
-    if color is None:
-        sys.exit(f"cannot read {args.image}")
-    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
-    bands = detect_staff_bands(gray)
-    print(f"staves: {len(bands)}", file=sys.stderr)
-    tmp = Path(tempfile.mkdtemp(prefix="fuse_"))
-
-    # 1) Audiveris on the WHOLE system (its natural input — per-staff is unreliable);
-    #    parts come out top-to-bottom, matching the staff order.
-    up = cv2.resize(color, None, fx=args.scale, fy=args.scale,
-                    interpolation=cv2.INTER_CUBIC)
+def audiveris_parts(color, scale, tmp):
+    """Run Audiveris on the WHOLE system (its natural input) -> parts top-to-bottom."""
+    up = cv2.resize(color, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     MAX = 18_000_000
     if up.shape[0] * up.shape[1] > MAX:
         f = (MAX / (up.shape[0] * up.shape[1])) ** 0.5
@@ -74,50 +57,110 @@ def main():
     whole = str(tmp / "whole.png")
     cv2.imwrite(whole, up)
     a_dir = tmp / "audiveris"
-    a_dir.mkdir()
-    run([AUDIVERIS, "-batch", "-export", "-output", a_dir, whole]) if AUDIVERIS.exists() else None
-    a_parts = []
+    a_dir.mkdir(exist_ok=True)
+    if AUDIVERIS.exists():
+        run([AUDIVERIS, "-batch", "-export", "-output", a_dir, whole])
     mxls = sorted(Path(a_dir).glob("whole*.mxl"))
-    if mxls:
-        try:
-            a_parts = list(converter.parse(str(mxls[0])).parts)
-        except Exception:
-            a_parts = []
-    print(f"Audiveris parts: {len(a_parts)}", file=sys.stderr)
+    if not mxls:
+        return []
+    try:
+        return list(converter.parse(str(mxls[0])).parts)
+    except Exception:
+        return []
 
-    # 2) TrOMR per staff (pitches)
-    t_parts = []
+
+def tromr_parts(color, bands, tmp):
+    """Run TrOMR per staff -> one part per staff (pitches)."""
+    parts = []
     for i, (y0, y1) in enumerate(bands, 1):
-        crop = color[y0:y1]
-        c = cv2.copyMakeBorder(crop, 12, 12, 12, 12, cv2.BORDER_CONSTANT,
-                               value=(255, 255, 255))
+        c = cv2.copyMakeBorder(color[y0:y1], 12, 12, 12, 12,
+                               cv2.BORDER_CONSTANT, value=(255, 255, 255))
         png = str(tmp / f"staff{i:02d}.png")
         cv2.imwrite(png, c)
-        t_parts.append(tromr_part(png, str(tmp / f"tromr{i:02d}.musicxml")))
+        parts.append(tromr_part(png, str(tmp / f"tromr{i:02d}.musicxml")))
+    return parts
 
-    # 3) fuse by order: Audiveris part i  <-  TrOMR pitches of staff i
-    out_score = stream.Score()
-    n = max(len(a_parts), len(t_parts))
-    for i in range(n):
-        a_part = a_parts[i] if i < len(a_parts) else None
-        t_part = t_parts[i] if i < len(t_parts) else None
-        if a_part is None and t_part is None:
+
+def _concat(parts):
+    """Concatenate measures of several staff Parts (same role across systems)."""
+    import copy
+    out = stream.Part()
+    num = 1
+    for p in parts:
+        if p is None:
             continue
-        if a_part is None:
+        for m in p.getElementsByClass("Measure"):
+            mm = copy.deepcopy(m)
+            mm.number = num
+            num += 1
+            out.append(mm)
+    return out if list(out.getElementsByClass("Measure")) else None
+
+
+def fuse(a_parts, t_parts):
+    """Overlay TrOMR pitches onto Audiveris parts by top-to-bottom order.
+
+    Multi-system page: Audiveris gives P continuous parts, TrOMR gives one part per
+    staff (P per system). Regroup TrOMR staves by role (staff i -> part i mod P) and
+    concatenate, so each Audiveris part fuses with its full-length TrOMR counterpart.
+    """
+    P = len(a_parts)
+    if P and len(t_parts) > P and len(t_parts) % P == 0:
+        t_parts = [_concat([t_parts[j] for j in range(r, len(t_parts), P)])
+                   for r in range(P)]
+
+    out = stream.Score()
+    for i in range(max(len(a_parts), len(t_parts))):
+        a = a_parts[i] if i < len(a_parts) else None
+        t = t_parts[i] if i < len(t_parts) else None
+        if a is None and t is None:
+            continue
+        if a is None:
             print(f"  part {i + 1}: Audiveris missing — TrOMR only", file=sys.stderr)
-            out_score.insert(0, t_part)
+            out.insert(0, t)
             continue
-        if t_part is None:
+        if t is None:
             print(f"  part {i + 1}: TrOMR missing — Audiveris only", file=sys.stderr)
-            out_score.insert(0, a_part)
+            out.insert(0, a)
             continue
-        st = fuse_parts(a_part, t_part)
-        frac = st["matched"] / st["total"] if st["total"] else 0.0
-        tag = "" if frac >= 0.5 else "  (low match — pitches mostly kept)"
-        print(f"  part {i + 1}: match {frac:.0%}, {st['changed']}/{st['total']} "
-              f"pitch(es) changed{tag}", file=sys.stderr)
-        out_score.insert(0, a_part)
+        st = fuse_parts(a, t)
+        if "skipped" in st:
+            print(f"  part {i + 1}: SKIPPED ({st['skipped']}) — Audiveris kept",
+                  file=sys.stderr)
+        else:
+            print(f"  part {i + 1}: agreement {st['agreement']:.0%}, "
+                  f"{st['changed']}/{st['total']} pitch(es) changed", file=sys.stderr)
+        out.insert(0, a)
+    return out
 
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("image")
+    ap.add_argument("-o", "--out", required=True)
+    ap.add_argument("--from-mxl", help="use this existing Audiveris MusicXML "
+                    "instead of re-running Audiveris (e.g. omr.py's result)")
+    ap.add_argument("--scale", type=float, default=3.0,
+                    help="upscale for Audiveris when not using --from-mxl")
+    args = ap.parse_args()
+
+    color = cv2.imread(args.image)
+    if color is None:
+        sys.exit(f"cannot read {args.image}")
+    bands = detect_staff_bands(cv2.cvtColor(color, cv2.COLOR_BGR2GRAY))
+    print(f"staves: {len(bands)}", file=sys.stderr)
+    tmp = Path(tempfile.mkdtemp(prefix="fuse_"))
+
+    if args.from_mxl:
+        try:
+            a_parts = list(converter.parse(args.from_mxl).parts)
+        except Exception as e:
+            sys.exit(f"cannot read --from-mxl: {e}")
+    else:
+        a_parts = audiveris_parts(color, args.scale, tmp)
+    print(f"Audiveris parts: {len(a_parts)}", file=sys.stderr)
+
+    out_score = fuse(a_parts, tromr_parts(color, bands, tmp))
     out_score.write("musicxml", fp=args.out)
     print(args.out)
 

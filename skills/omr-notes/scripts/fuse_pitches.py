@@ -17,7 +17,8 @@ from music21 import converter, note, chord
 
 GAP = 1.0          # NW gap penalty (quarterLengths)
 TOL = 0.75         # max rhythmic distance to accept a pitch swap (|Δonset|+|Δdur|)
-MIN_MATCH = 0.5    # skip a staff if < this fraction of notes got matched
+AGREE_MIN = 0.80   # only trust TrOMR corrections if it agrees on >= this fraction
+                   # of aligned notes (low agreement => unreliable read => skip)
 
 
 def _events(measure):
@@ -69,18 +70,31 @@ def _swap_pitch(a_el, t_el):
 
 
 def fuse_parts(a_part, t_part):
-    """Overlay t_part pitches onto a_part (modified in place). Returns (stats)."""
+    """Overlay t_part pitches onto a_part (modified in place). Returns (stats).
+
+    Safety: if the two parts' measure counts don't correspond, the per-measure
+    alignment can't be trusted (e.g. a multi-system concat whose bars don't line up
+    with Audiveris) — skip entirely rather than risk corrupting correct pitches.
+    """
     a_meas = list(a_part.getElementsByClass("Measure"))
     t_meas = list(t_part.getElementsByClass("Measure"))
-    changed, matched, total = 0, 0, 0
-    diffs = []
+    tol = max(1, round(0.08 * max(len(a_meas), len(t_meas), 1)))
+    if abs(len(a_meas) - len(t_meas)) > tol:
+        total = sum(len(m.notes) for m in a_meas)
+        return {"total": total, "matched": 0, "changed": 0,
+                "diffs": [], "skipped": f"measure counts {len(a_meas)} vs {len(t_meas)}"}
+    def pname(e):
+        return e.nameWithOctave if e.isNote else "/".join(p.nameWithOctave for p in e.pitches)
+
+    # pass 1: collect aligned pairs (no mutation yet), measure AGREEMENT
+    pairs, agree = [], 0
+    total = 0
     for mi, am in enumerate(a_meas):
-        tm = t_meas[mi] if mi < len(t_meas) else None
         a_ev = _events(am)
         total += len(a_ev)
-        if not tm:
+        if mi >= len(t_meas):
             continue
-        t_ev = _events(tm)
+        t_ev = _events(t_meas[mi])
         if not a_ev or not t_ev:
             continue
         for ai, tj in _nw(a_ev, t_ev):
@@ -88,14 +102,30 @@ def fuse_parts(a_part, t_part):
             to, td, tel = t_ev[tj]
             if abs(ao - to) + abs(ad - td) > TOL:
                 continue
-            matched += 1
-            before = ael.nameWithOctave if ael.isNote else "/".join(p.nameWithOctave for p in ael.pitches)
-            if _swap_pitch(ael, tel):
-                after = ael.nameWithOctave if ael.isNote else "/".join(p.nameWithOctave for p in ael.pitches)
-                if after != before:
-                    changed += 1
-                    diffs.append(f"m{am.measureNumber} off{ao:g}: {before} -> {after}")
-    return {"total": total, "matched": matched, "changed": changed, "diffs": diffs}
+            same = pname(ael) == pname(tel)
+            agree += same
+            pairs.append((am, ao, ael, tel, same))
+
+    matched = len(pairs)
+    agreement = agree / matched if matched else 0.0
+    # Agreement gate: only trust TrOMR's corrections when it broadly corroborates
+    # Audiveris. Low agreement => TrOMR's read of this part is unreliable => skip.
+    if matched == 0 or agreement < AGREE_MIN:
+        return {"total": total, "matched": matched, "changed": 0, "diffs": [],
+                "agreement": agreement,
+                "skipped": f"agreement {agreement:.0%} < {AGREE_MIN:.0%}"}
+
+    # pass 2: apply swaps to the disagreements
+    changed, diffs = 0, []
+    for am, ao, ael, tel, same in pairs:
+        if same:
+            continue
+        before = pname(ael)
+        if _swap_pitch(ael, tel) and pname(ael) != before:
+            changed += 1
+            diffs.append(f"m{am.measureNumber} off{ao:g}: {before} -> {pname(ael)}")
+    return {"total": total, "matched": matched, "changed": changed,
+            "diffs": diffs, "agreement": agreement}
 
 
 def fuse_scores(a_score, t_score):
@@ -107,14 +137,10 @@ def fuse_scores(a_score, t_score):
             report.append({"part": i, "skipped": "no TrOMR part"})
             continue
         st = fuse_parts(ap, t_parts[i])
-        frac = st["matched"] / st["total"] if st["total"] else 0.0
-        if frac < MIN_MATCH:
-            report.append({"part": i, "skipped": f"low match {frac:.0%}",
-                           "total": st["total"]})
-            # (pitches already partially swapped; acceptable since only well-aligned
-            #  notes were touched. A stricter revert could re-parse — v2.)
+        if "skipped" in st:
+            report.append({"part": i, "skipped": st["skipped"]})
         else:
-            report.append({"part": i, "match": f"{frac:.0%}",
+            report.append({"part": i, "agreement": f"{st['agreement']:.0%}",
                            "changed": st["changed"], "diffs": st["diffs"]})
     return report
 
@@ -134,8 +160,8 @@ def main():
         if "skipped" in r:
             print(f"part {r['part']}: SKIPPED ({r['skipped']})", file=sys.stderr)
         else:
-            print(f"part {r['part']}: match {r['match']}, {r['changed']} pitch(es) changed",
-                  file=sys.stderr)
+            print(f"part {r['part']}: agreement {r['agreement']}, "
+                  f"{r['changed']} pitch(es) changed", file=sys.stderr)
             if not args.quiet:
                 for dln in r["diffs"][:40]:
                     print(f"    {dln}", file=sys.stderr)
