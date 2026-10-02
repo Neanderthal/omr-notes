@@ -73,6 +73,15 @@ a result it runs `fix_omr --fill` and keeps it only if the QA penalty drops (so
 manual because they need judgement. The full path (with worked examples) is in
 [`references/correction-workflow.md`](references/correction-workflow.md).
 
+## Pitch fusion (accuracy on dense scans)
+
+When Audiveris gets the structure right but the **pitches** wrong on a dense staff,
+`scripts/fuse_omr.py` overlays **TrOMR's pitches** onto the Audiveris skeleton:
+Audiveris (whole system) for rhythm/structure, TrOMR (per staff) for pitches,
+aligned per measure by rhythm and swapped only where they line up. Pitch only;
+safe (clean scores barely change, QA never worse). Needs the TrOMR env. See
+[`references/pitch-fusion.md`](references/pitch-fusion.md).
+
 ## Export to PDF / MIDI (`export.py`)
 
 ```bash
