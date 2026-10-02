@@ -9,10 +9,22 @@ import cv2
 import numpy as np
 
 
-def detect_staff_bands(gray):
-    """Return [(y0, y1)] for each staff (a group of ~5 staff lines), top to bottom."""
+def detect_staff_bands(gray, forced=None):
+    """Return [(y0, y1)] for each staff (a group of ~5 staff lines), top to bottom.
+
+    forced=N splits the content into N equal bands — a reliable override when a very
+    dense staff (continuous beamed runs / ottava) obscures its own lines and
+    auto-detection misses it.
+    """
     h, w = gray.shape
     _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    if forced:
+        ink = bw.sum(axis=1)
+        rows = np.where(ink > 0)[0]
+        top, bot = (int(rows[0]), int(rows[-1])) if len(rows) else (0, h)
+        step = (bot - top) / forced
+        return [(int(top + i * step), int(top + (i + 1) * step)) for i in range(forced)]
+
     hk = cv2.getStructuringElement(cv2.MORPH_RECT, (max(10, int(w * 0.3)), 1))
     lines = cv2.morphologyEx(bw, cv2.MORPH_OPEN, hk)
     row = (lines.sum(axis=1) / 255.0) > w * 0.3
@@ -38,8 +50,16 @@ def detect_staff_bands(gray):
         else:
             group.append(c)
     staves.append(group)
+    # Refinement: a group with a multiple of 5 lines (>5) is really several tightly
+    # spaced staves merged by a small inter-staff gap — re-split it into 5-line staves.
+    refined = []
+    for g in staves:
+        if len(g) >= 10 and len(g) % 5 == 0:
+            refined += [g[k:k + 5] for k in range(0, len(g), 5)]
+        else:
+            refined.append(g)
     pad = int(interline * 4)          # room for ledger lines / stems
-    out = [(max(0, g[0] - pad), min(h, g[-1] + pad)) for g in staves if len(g) >= 3]
+    out = [(max(0, g[0] - pad), min(h, g[-1] + pad)) for g in refined if len(g) >= 3]
     return out or [(0, h)]
 
 

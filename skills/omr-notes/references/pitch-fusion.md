@@ -38,8 +38,10 @@ python3 scripts/fuse_pitches.py AUDIVERIS.mxl TROMR.musicxml -o fused.musicxml
   Still eyeball the render.
 
 ## Known limits (v1)
-- `staff_split` can merge two staves of a tightly-spaced grand staff into one —
-  tune the gap threshold or crop per staff if that happens.
+- `staff_split` auto-detects staves from their 5 lines. Tightly-spaced staves whose
+  lines *are* found are now re-split (5-line chunking), but a **very dense staff**
+  (continuous beamed runs / ottava) can obscure its own lines so it isn't detected
+  at all — pass `--staves N` to `fuse_omr.py`/`tromr_omr.py` to force N equal bands.
 - Fusion helps where the two engines **agree on rhythm**; in passages where TrOMR's
   rhythm also diverges, few notes align and little changes.
 - Does not fix octave (8va) errors or rhythm — pitches only.

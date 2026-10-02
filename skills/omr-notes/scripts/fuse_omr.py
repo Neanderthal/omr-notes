@@ -142,12 +142,14 @@ def main():
                     "instead of re-running Audiveris (e.g. omr.py's result)")
     ap.add_argument("--scale", type=float, default=3.0,
                     help="upscale for Audiveris when not using --from-mxl")
+    ap.add_argument("--staves", type=int, default=None,
+                    help="force N equal staff bands (when a dense staff hides its lines)")
     args = ap.parse_args()
 
     color = cv2.imread(args.image)
     if color is None:
         sys.exit(f"cannot read {args.image}")
-    bands = detect_staff_bands(cv2.cvtColor(color, cv2.COLOR_BGR2GRAY))
+    bands = detect_staff_bands(cv2.cvtColor(color, cv2.COLOR_BGR2GRAY), forced=args.staves)
     print(f"staves: {len(bands)}", file=sys.stderr)
     tmp = Path(tempfile.mkdtemp(prefix="fuse_"))
 
