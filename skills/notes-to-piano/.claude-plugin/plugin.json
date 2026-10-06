@@ -21,6 +21,6 @@
     "offline"
   ],
   "skills": [
-    "./SKILL.md"
+    "."
   ]
 }
